@@ -4,11 +4,7 @@ https://stackoverflow.com/questions/161813/how-to-resolve-merge-conflicts-in-git
 
 
 
-git checkout GitTest.txt** - usuwa dodane zmiany  w pliku ktore nie zostaly jeszcze skomitowane
-
-**git log** - show commits data
-
-**git log --stat** - pokazuej zmiany jakie zaszly w utworzonych comitach
+git checkout GitTest.txt** - usuwa dodane zmiany  w pliku ktore nie zostaly jeszcze skomitowan
 
 **git commit --amend -m** "Zmiana wiadomosci w komicie" - zmienia wiadomosc w komicie, ale zmienai tez hash code commitu co powoduje zmiane histori UWAZAC GDY ROBIMY ZMIANY W KOMITACH KTORE SA NA REMOTE
 
@@ -44,5 +40,17 @@ TWORZENIE BRANCZI Z KONKRETNEGO COMMITU:
 
 
 
+
+
+Changing Your Last Commit
+One of the common undos takes place when you commit too early and possibly forget to add
+some files, or you mess up your commit message. If you want to try that commit again, you can
+34
+Scott Chacon Pro Git Section 2.4 Undoing Things
+run commit with the --amend option:
+
+```
+$ git commit --amend  
+```
 
 
