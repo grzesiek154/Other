@@ -1,0 +1,1 @@
+CTRL + y  - remove whole line
