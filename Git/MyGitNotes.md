@@ -1,3 +1,7 @@
+# Git Three stages 
+
+![image-20210106152549141](/home/grzesiek/.config/Typora/typora-user-images/image-20210106152549141.png)
+
 ## A quick note on syntax
 
 - `[]`: Optional content
