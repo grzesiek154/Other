@@ -267,3 +267,235 @@ During this **navigation cycle, the router emits a series of events**. The Route
 `RoutesRecognized:` When a url has been matched to a route. 
 
 NavigationEnd: Triggered when navigation ends successfully.
+
+# RxJS The map operator
+
+https://medium.com/@luukgruijs/understanding-rxjs-map-mergemap-switchmap-and-concatmap-833fc1fb09ff
+
+The map operator is the most common of all. For each value that the Observable emits you can apply a function  in which you can modify the data. The return value will, behind the  scenes, be reemitted as an Observable again so you can keep using it in  your stream. It works pretty much the same as how you would use it with  Arrays. The difference is that Arrays will always be just Arrays and  while mapping you get the value of the current index in the Array. With  Observables the type of data can be of all sorts of types. This means  that you might have to do some additional operations in side your  Observable map function to get the desired result. Let’s look at some  examples:
+
+import { of } from 'rxjs'; 
+
+import { map } from 'rxjs/operators';
+
+
+
+```typescript
+import { of } from 'rxjs'; 
+import { map } from 'rxjs/operators';
+
+// lets create our data first
+const data = of([
+  {
+    brand: 'porsche',
+    model: '911'
+  },
+  {
+    brand: 'porsche',
+    model: 'macan'
+  },
+  {
+    brand: 'ferarri',
+    model: '458'
+  },
+  {
+    brand: 'lamborghini',
+    model: 'urus'
+  }
+]);
+
+// get data as brand+model string. Result: 
+// ["porsche 911", "porsche macan", "ferarri 458", "lamborghini urus"]
+data
+  .pipe(
+    map(cars => cars.map(car => `${car.brand} ${car.model}`))
+  ).subscribe(cars => console.log(cars))
+
+// filter data so that we only have porsches. Result:
+// [
+//   {
+//     brand: 'porsche',
+//     model: '911'
+//   },
+//   {
+//     brand: 'porsche',
+//     model: 'macan'
+//   }
+// ]
+data
+  .pipe(
+    map(cars => cars.filter(car => car.brand === 'porsche'))
+  ).subscribe(cars => console.log(cars))
+```
+
+
+
+# RxJS MergeMap
+
+https://medium.com/@luukgruijs/understanding-rxjs-map-mergemap-switchmap-and-concatmap-833fc1fb09ff
+
+Now let’s say there is a scenario where we have an Observable that emits an array, and for each item in the array we need to fetch data from the  server.
+
+We could do this by subscribing to the array, then setup a map that calls a function which handles the API call and then subscribe to the result.  This could look like the following:
+
+```typescript
+import { of, from } from 'rxjs'; 
+import { map, delay } from 'rxjs/operators';
+
+const getData = (param) => {
+  return of(`retrieved new data with param ${param}`).pipe(
+    delay(1000)
+  )
+}
+
+from([1,2,3,4]).pipe(
+  map(param => getData(param))
+).subscribe(val => console.log(val);
+```
+
+To further clarify this: we have `from([1,2,3,4])` as our ‘outer’ Observable, and the result of the `getData()` as our ‘inner’ Observable. In theory we have to subscribe to both our  outer and inner Observable to get the data out. This could like this:
+
+```typescript
+import { of, from } from 'rxjs'; 
+import { map, delay } from 'rxjs/operators';
+
+const getData = (param) => {
+  return of(`retrieved new data with param ${param}`).pipe(
+    delay(1000)
+  )
+}
+
+from([1,2,3,4]).pipe(
+  map(param => getData(param))
+).subscribe(val => val.subscribe(data => console.log(data)));
+```
+
+MergeAll takes care of subscribing to the ‘inner’ Observable so that we  no longer have to Subscribe two times as mergeAll merges the value of  the ‘inner’ Observable into the ‘outer’ Observable. This could look like this:
+
+```typescript
+import { of, from } from 'rxjs'; 
+import { map, delay, mergeAll } from 'rxjs/operators';
+
+const getData = (param) => {
+  return of(`retrieved new data with param ${param}`).pipe(
+    delay(1000)
+  )
+}
+
+from([1,2,3,4]).pipe(
+  map(param => getData(param)),
+  mergeAll()
+).subscribe(val => console.log(val));
+```
+
+This already is much better, but as you might already guessed mergeMap  would be the best solution for this. Here’s the full example:
+
+```typescript
+import { of, from } from 'rxjs'; 
+import { map, mergeMap, delay, mergeAll } from 'rxjs/operators';
+
+const getData = (param) => {
+  return of(`retrieved new data with param ${param}`).pipe(
+    delay(1000)
+  )
+}
+
+// using a regular map
+from([1,2,3,4]).pipe(
+  map(param => getData(param))
+).subscribe(val => val.subscribe(data => console.log(data)));
+
+// using map and mergeAll
+from([1,2,3,4]).pipe(
+  map(param => getData(param)),
+  mergeAll()
+).subscribe(val => console.log(val));
+
+// using mergeMap
+from([1,2,3,4]).pipe(
+  mergeMap(param => getData(param))
+).subscribe(val => console.log(val));
+
+```
+
+# RxJS SwitchMap
+
+https://medium.com/@luukgruijs/understanding-rxjs-map-mergemap-switchmap-and-concatmap-833fc1fb09ff
+
+SwitchMap has similar behaviour in that it will also subscribe to the inner  Observable for you. However switchMap is a combination of switchAll and  map. SwitchAll cancels the previous subscription and subscribes to the  new one. For our scenario where we want to do an API call for each item  in the array of the ‘outer’ Observable, switchMap does not work well as  it will cancel the first 3 subscriptions and only deals with the last  one. This means we will get only one result. The full example can be  seen here:
+
+```typescript
+import { of, from } from 'rxjs'; 
+import { map, delay, switchAll, switchMap } from 'rxjs/operators';
+
+const getData = (param) => {
+  return of(`retrieved new data with param ${param}`).pipe(
+    delay(1000)
+  )
+}
+
+// using a regular map
+from([1,2,3,4]).pipe(
+  map(param => getData(param))
+).subscribe(val => val.subscribe(data => console.log(data)));
+
+// using map and switchAll
+from([1,2,3,4]).pipe(
+  map(param => getData(param)),
+  switchAll()
+).subscribe(val => console.log(val));
+
+// using switchMap
+from([1,2,3,4]).pipe(
+  switchMap(param => getData(param))
+).subscribe(val => console.log(val));
+
+```
+
+While switchMap wouldn’t work for our current scenario, it will work for other scenario’s. It would for example come in handy if you compose a  list of filters into a data stream and perform an API call when a filter is changed. If the previous filter changes are still being processed  while a new change is already made, it will cancel the previous  subscription and start a new subscription on the latest change. An  example can be seen here:
+
+```typescript
+import { of, from, BehaviorSubject } from 'rxjs'; 
+import { map, delay, switchAll, switchMap } from 'rxjs/operators';
+
+const filters = ['brand=porsche', 'model=911', 'horsepower=389', 'color=red']
+const activeFilters = new BehaviorSubject('');
+
+const getData = (params) => {
+  return of(`retrieved new data with params ${params}`).pipe(
+    delay(1000)
+  )
+}
+
+const applyFilters = () => {
+  filters.forEach((filter, index) => {
+
+    let newFilters = activeFilters.value;
+    if (index === 0) {
+      newFilters = `?${filter}`
+    } else {
+      newFilters = `${newFilters}&${filter}`
+    }
+
+    activeFilters.next(newFilters)
+  })
+}
+
+// using switchMap
+activeFilters.pipe(
+  switchMap(param => getData(param))
+).subscribe(val => console.log(val));
+
+applyFilters()
+
+```
+
+
+
+# Forms
+
+## Dynamic FormArray
+
+https://www.bitovi.com/blog/managing-nested-and-dynamic-forms-in-angular
+
+https://www.tektutorialshub.com/angular/nested-formarray-example-add-form-fields-dynamically/
