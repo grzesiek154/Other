@@ -268,6 +268,125 @@ During this **navigation cycle, the router emits a series of events**. The Route
 
 NavigationEnd: Triggered when navigation ends successfully.
 
+## Route Guards
+
+Use angular-jwt in your `AuthService`
+
+```typescript
+// src/app/auth/auth.service.tsimport { Injectable } from '@angular/core';
+import { JwtHelperService } from '@auth0/angular-jwt';@Injectable()
+export class AuthService {  constructor(public jwtHelper: JwtHelperService) {}  // ...
+  public isAuthenticated(): boolean {    const token = localStorage.getItem('token');    // Check whether the token is expired and return
+    // true or false
+    return !this.jwtHelper.isTokenExpired(token);
+  }}
+```
+
+> ***Note:\*** *This example assumes that you are storing the user’s JWT in local storage.*
+
+Create a new service which implements the route guard. You can call it whatever you like, but something like `auth-guard.service` is generally sufficient.
+
+```typescript
+// src/app/auth/auth-guard.service.tsimport { Injectable } from '@angular/core';
+import { Router, CanActivate } from '@angular/router';
+import { AuthService } from './auth.service';@Injectable()
+export class AuthGuardService implements CanActivate {  constructor(public auth: AuthService, public router: Router) {}  canActivate(): boolean {
+    if (!this.auth.isAuthenticated()) {
+      this.router.navigate(['login']);
+      return false;
+    }
+    return true;
+  }}
+```
+
+The service injects `AuthService` and `Router` and has a single method called `canActivate`. This method is necessary to properly implement the `CanActivate` interface.
+
+The `canActivate` method returns a `boolean` indicating whether or not navigation to a route should be allowed. If  the user isn’t authenticated, they are re-routed to some other place, in this case a route called `/login`.
+
+Now the guard can be applied to any routes you wish to protect.
+
+```typescript
+// src/app/app.routes.tsimport { Routes, CanActivate } from '@angular/router';
+import { ProfileComponent } from './profile/profile.component';
+import { 
+  AuthGuardService as AuthGuard 
+} from './auth/auth-guard.service';export const ROUTES: Routes = [
+  { path: '', component: HomeComponent },
+  { 
+    path: 'profile',
+    component: ProfileComponent,
+    canActivate: [AuthGuard] 
+  },
+  { path: '**', redirectTo: '' }
+];
+```
+
+The `/profile` route has an extra config value now: `canActivate`. The `AuthGuard` that was created above is passed to an array for `canActivate` which means it will be run any time someone tries to access the `/profile` route. If the user is authenticated, they get to the route. If not, they are redirected to the `/login` route.
+
+Angular’s route guards are interfaces which can tell the router whether or not it should allow navigation to a requested route. They make this decision by looking for a `true` or `false` return value from a class which implements the given guard interface.
+
+### Checking for a User’s Role
+
+Create a new guard service called `RoleGuardService`.
+
+```typescript
+// src/app/auth/role-guard.service.tsimport { Injectable } from '@angular/core';
+import { 
+  Router,
+  CanActivate,
+  ActivatedRouteSnapshot
+} from '@angular/router';
+import { AuthService } from './auth.service';
+import decode from 'jwt-decode';@Injectable()
+export class RoleGuardService implements CanActivate {  constructor(public auth: AuthService, public router: Router) {}  canActivate(route: ActivatedRouteSnapshot): boolean {    // this will be passed from the route config
+    // on the data property
+    const expectedRole = route.data.expectedRole;    const token = localStorage.getItem('token');    // decode the token to get its payload
+    const tokenPayload = decode(token);    if (
+      !this.auth.isAuthenticated() || 
+      tokenPayload.role !== expectedRole
+    ) {
+      this.router.navigate(['login']);
+      return false;
+    }
+    return true;
+  }}
+```
+
+In this guard we’re using `ActivatedRouteSnapshot` to give us access to the `data` property for a given route. This `data` property is useful because we can pass an object with some custom  properties to it from our route configuration. We can then pick up that  custom data in the guard to help with making routing decisions.
+
+In this case we’re looking for a role that we expect the user to have if  they are to be allowed access to the route. Next we are decoding the  token to grab its payload. If the user isn’t authenticated **or** if they don’t have the role we expect them to have in their token  payload, we cancel navigation and have them log in. Otherwise, they are  free to proceed.
+
+We can now use this `RoleGuardService` for any of our routes. We might, for example, want to protect an `/admin` route.
+
+```typescript
+// src/app/app.routes.tsimport { Routes, CanActivate } from '@angular/router';
+import { ProfileComponent } from './profile/profile.component';
+import { 
+  AuthGuardService as AuthGuard 
+} from './auth/auth-guard.service';
+import { 
+  RoleGuardService as RoleGuard 
+} from './auth/role-guard.service';export const ROUTES: Routes = [
+  { path: '', component: HomeComponent },
+  { 
+    path: 'profile', 
+    component: ProfileComponent, 
+    canActivate: [AuthGuard] 
+  },
+  { 
+    path: 'admin', 
+    component: AdminComponent, 
+    canActivate: [RoleGuard], 
+    data: { 
+      expectedRole: 'admin'
+    } 
+  },
+  { path: '**', redirectTo: '' }
+];
+```
+
+For the `/admin` route, we’re still using `canActivate` to control navigation, but this time we’re passing an object on the `data` property which has that `expectedRole` key that we’ve already seen in the `RoleGuardService`.
+
 # RxJS The map operator
 
 https://medium.com/@luukgruijs/understanding-rxjs-map-mergemap-switchmap-and-concatmap-833fc1fb09ff
@@ -499,3 +618,81 @@ applyFilters()
 https://www.bitovi.com/blog/managing-nested-and-dynamic-forms-in-angular
 
 https://www.tektutorialshub.com/angular/nested-formarray-example-add-form-fields-dynamically/
+
+
+
+# Dynamic components creation
+
+https://angular.io/guide/dynamic-component-loader
+
+
+
+# On changes angular form event
+
+https://www.digitalocean.com/community/tutorials/angular-reactive-forms-valuechanges
+
+
+
+# @Input and @Output and service communication between components
+
+https://stackoverflow.com/questions/51027711/angular-input-and-output-vs-injectable-service
+
+`@Input` and `@Output` are useful if the  communication between a parent and child is just that, between a parent  and child. It wouldn't make sense to have a service that maintains  singleton data for just 2 components (or however deeply nested  grandparent -> parent -> child components are).
+
+They're also useful if your parent needs to react to a change in the  child. For example, clicking a button in a child component that calls a  function in the parent:
+
+```js
+<my-child-component (myOutputEmitter)="reactToChildChange($event)"></my-child-component>
+```
+
+And in parent:
+
+```js
+reactToChildChange(data: any) {
+  // do something with data
+}
+```
+
+If you find yourself passing many `@Input` properties to a child, and want to tidy up a template, then you can define an interface for the input, and pass it instead. e.g.
+
+```js
+export interface MyChildProperties {
+   property?: any;
+   anotherProperty?: any;
+   andAnotherProperty?: any;
+}
+```
+
+Then you can pass a definition to your child, which is set from the parent:
+
+```js
+childProperties: MyChildProperties = {
+    property: 'foo',
+    anotherProperty: 'bar',
+    andAnotherProperty: 'zoob'
+}
+```
+
+Then your child component may have:
+
+```js
+@Input properties: MyChildProperties;
+```
+
+and your template becomes:
+
+```js
+<my-child-component [properties]="childProperties"></my-child-component>
+```
+
+Your child can access those properties from `properties.property`, `properties.anotherProperty`, etc.
+
+Clean, tidy, and your data is now contained to those components that need to communicate.
+
+Services, however, should be used where *more than one component* needs access to read/write data across your entire application. Consider a `UserService` for example, where many different components need to be able to access  the currently logged in user. In this case, a service is sensible, as  its a singleton, so once you have set your logged in user, any  components that inject the `UserService` can access its data and functions.
+
+Similarly, if you were to use a service for reacting to change, then  you'd find yourself writing services with observables so that your  components could subscribe to changes in the data. Eventemitters already give you this pattern with `@Output` as shown above.
+
+If it were a simple parent -> child communication, this is unnecessary overhead, and should be avoided.
+
+That said, if you find yourself using services to manage global  state, you'd be better off using some form of state management such as [ngrx](https://github.com/ngrx)
